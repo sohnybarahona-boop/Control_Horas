@@ -12,12 +12,7 @@ def load_data():
     with open(DATA_FILE, "r", encoding="utf-8") as f:
       return json.load(f)
   else:
-    # Datos iniciales por defecto
-    return {
-        "debt_casa_1": 48.5,
-        "debt_casa_2": 23.5,
-        "history": [],  # Lista para guardar cada registro: {"id", "casa", "hours", "date", "note"}
-    }
+    return {"debt_casa_1": 48.5, "debt_casa_2": 23.5, "history": []}
 
 
 def save_data(data):
@@ -30,7 +25,7 @@ data = load_data()
 
 st.title("⏱️ Control de Horas de Trabajo")
 
-# Calcular horas restantes restando los registros del historial a la deuda inicial
+# Calcular horas restantes
 total_worked_casa_1 = sum(
     item["hours"] for item in data["history"] if item["casa"] == "Casa #1"
 )
@@ -47,13 +42,11 @@ col1.metric(
     label="🏠 Deuda Casa #1",
     value=f"{current_debt_1:.1f} hrs",
     delta=f"-{total_worked_casa_1:.1f} hrs trabajadas",
-    delta_inverse=True,
 )
 col2.metric(
     label="🏡 Deuda Casa #2",
     value=f"{current_debt_2:.1f} hrs",
     delta=f"-{total_worked_casa_2:.1f} hrs trabajadas",
-    delta_inverse=True,
 )
 
 st.divider()
@@ -76,9 +69,7 @@ with tab1:
     submitted = st.form_submit_button("Guardar Registro")
     if submitted:
       nuevo_registro = {
-          "id": datetime.now().strftime(
-              "%Y%m%d%H%M%S"
-          ),  # Identificador único basado en la hora exacta
+          "id": datetime.now().strftime("%Y%m%d%H%M%S"),
           "casa": casa_seleccionada,
           "hours": horas_ingresadas,
           "date": fecha_trabajo.strftime("%Y-%m-%d"),
@@ -102,7 +93,6 @@ with tab2:
         " volver a ingresarlo correctamente:"
     )
 
-    # Mostrar la lista de registros en orden inverso (los más recientes primero)
     for i, item in enumerate(reversed(data["history"])):
       with st.container():
         col_info, col_btn = st.columns([4, 1])
@@ -113,9 +103,7 @@ with tab2:
           if item["note"]:
             st.caption(f"Nota: {item['note']}")
         with col_btn:
-          # Botón para borrar el registro usando su ID único
-          if st.button("🗑️ Borrar", key=f"del_{item['id']}̣_{i}"):
-            # Encontrar y eliminar el elemento en la lista original
+          if st.button("🗑️ Borrar", key=f"del_{item['id']}_{i}"):
             data["history"] = [
                 h for h in data["history"] if h["id"] != item["id"]
             ]
