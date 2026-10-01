@@ -11,7 +11,12 @@ def cargar_datos():
   if os.path.exists(DATA_FILE):
     with open(DATA_FILE, "r", encoding="utf-8") as f:
       try:
-        return json.load(f)
+        datos = json.load(f)
+        # Asegurar que lo que se carga es una lista, si no, devolver lista vacía
+        if isinstance(datos, list):
+          return datos
+        else:
+          return []
       except json.JSONDecodeError:
         return []
   return []
@@ -27,8 +32,10 @@ st.set_page_config(
     page_title="Control de Horas", page_icon="⏱️", layout="centered"
 )
 
-# Cargar los registros existentes
+# Cargar los registros existentes asegurando que sea una lista
 registros = cargar_datos()
+if not isinstance(registros, list):
+  registros = []
 
 # Menú superior estilo pestañas
 menu = st.radio(
@@ -57,8 +64,12 @@ if menu == "Registrar Horas":
     submitted = st.form_submit_button("Guardar Registro")
     if submitted:
       if casa.strip():
-        # Generar un ID único basado en el tiempo actual
-        nuevo_id = f"{len(registros) + 1}_{datetime.now().timestamp()}"
+        # Volver a cargar los datos por seguridad antes de agregar
+        registros_actuales = cargar_datos()
+        if not isinstance(registros_actuales, list):
+          registros_actuales = []
+
+        nuevo_id = f"{len(registros_actuales) + 1}_{datetime.now().timestamp()}"
         nuevo_registro = {
             "id": nuevo_id,
             "casa": casa.strip(),
@@ -66,8 +77,8 @@ if menu == "Registrar Horas":
             "fecha": str(fecha),
             "nota": nota,
         }
-        registros.append(nuevo_registro)
-        guardar_datos(registros)
+        registros_actuales.append(nuevo_registro)
+        guardar_datos(registros_actuales)
         st.success("¡Registro guardado con éxito!")
         st.rerun()
       else:
@@ -86,7 +97,7 @@ elif menu == "Ver / Corregir Historial":
   if not registros:
     st.info("No hay registros guardados todavía.")
   else:
-    # Obtener la lista única de casas de forma segura (evita errores con registros antiguos)
+    # Obtener la lista única de casas de forma segura
     casas_disponibles = sorted(
         list(
             set(
@@ -129,8 +140,12 @@ elif menu == "Ver / Corregir Historial":
 
             with col1:
               if st.button("🗑️ Borrar", key=f"borrar_{reg_id}"):
-                registros = [r for r in registros if r.get("id") != reg_id]
-                guardar_datos(registros)
+                datos_actuales = cargar_datos()
+                if isinstance(datos_actuales, list):
+                  datos_actuales = [
+                      r for r in datos_actuales if r.get("id") != reg_id
+                  ]
+                  guardar_datos(datos_actuales)
                 st.success("Registro eliminado correctamente.")
                 st.rerun()
 
@@ -157,13 +172,15 @@ elif menu == "Ver / Corregir Historial":
 
                 c_guardar, c_cancelar = st.columns(2)
                 if c_guardar.form_submit_button("Guardar Cambios"):
-                  for r in registros:
-                    if r.get("id") == reg_id:
-                      r["casa"] = nuevo_casa.strip()
-                      r["horas"] = nuevas_horas
-                      r["fecha"] = str(nueva_fecha)
-                      r["nota"] = nueva_nota
-                  guardar_datos(registros)
+                  datos_actuales = cargar_datos()
+                  if isinstance(datos_actuales, list):
+                    for r in datos_actuales:
+                      if r.get("id") == reg_id:
+                        r["casa"] = nuevo_casa.strip()
+                        r["horas"] = nuevas_horas
+                        r["fecha"] = str(nueva_fecha)
+                        r["nota"] = nueva_nota
+                    guardar_datos(datos_actuales)
                   st.session_state[f"editando_{reg_id}"] = False
                   st.success("¡Modificado con éxito!")
                   st.rerun()
