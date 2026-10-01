@@ -7,17 +7,13 @@ st.set_page_config(page_title="Control de Horas - Casas", page_icon="🏠", layo
 st.title("🏠 Sistema de Control y Registro de Horas")
 st.markdown("Gestiona las horas que debes, registra, edita o elimina actividades devengadas y consulta el resumen general.")
 
-# Inicializar estado para las dos casas si no existe
+# Inicializar estado para las dos casas completamente vacío
 if "casa1_df" not in st.session_state:
-    st.session_state.casa1_df = pd.DataFrame([
-        {"ID": 1, "Fecha": "2026-09-01", "Horas Devengadas": 5.0, "Observaciones": "Limpieza general"},
-        {"ID": 2, "Fecha": "2026-09-10", "Horas Devengadas": 3.5, "Observaciones": "Revisión eléctrica"},
-    ])
+    st.session_state.casa1_df = pd.DataFrame(columns=["ID", "Fecha", "Horas Devengadas", "Observaciones"])
 
 if "casa2_df" not in st.session_state:
-    st.session_state.casa2_df = pd.DataFrame([
-        {"ID": 1, "Fecha": "2026-09-05", "Horas Devengadas": 4.0, "Observaciones": "Jardinería"},
-    ])
+    st.session_state.casa2_df = pd.DataFrame(columns=["ID", "Fecha", "Horas Devengadas", "Observaciones"])
+
 
 if "horas_debo" not in st.session_state:
     st.session_state.horas_debo = {"Casa 1": 40.0, "Casa 2": 40.0}
