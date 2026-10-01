@@ -6,13 +6,15 @@ import streamlit as st
 # Archivo local donde se guardarán los datos de forma persistente
 DATA_FILE = "data.json"
 
+# Lista predeterminada de tus casas (puedes modificarla o agregar más cuando quieras)
+CASAS_PREDEFINIDAS = ["Casa #1", "Casa #2", "Casa #3", "Otra casa"]
+
 
 def cargar_datos():
   if os.path.exists(DATA_FILE):
     with open(DATA_FILE, "r", encoding="utf-8") as f:
       try:
         datos = json.load(f)
-        # Asegurar que lo que se carga es una lista, si no, devolver lista vacía
         if isinstance(datos, list):
           return datos
         else:
@@ -54,7 +56,14 @@ if menu == "Registrar Horas":
   st.subheader("Registrar Nuevas Horas")
 
   with st.form("form_registro", clear_on_submit=True):
-    casa = st.text_input("Nombre de la Casa (ej. Casa #1, Casa #2)")
+    # Selector desplegable de casas predefinidas
+    casa_seleccionada = st.selectbox("Selecciona la Casa", CASAS_PREDEFINIDAS)
+
+    # Por si acaso quiere escribir una nueva que no esté en la lista fija
+    otra_casa = st.text_input(
+        "O escribe el nombre si no está en la lista (opcional)"
+    )
+
     horas = st.number_input(
         "Cantidad de Horas", min_value=0.5, step=0.5, value=1.0
     )
@@ -63,8 +72,10 @@ if menu == "Registrar Horas":
 
     submitted = st.form_submit_button("Guardar Registro")
     if submitted:
-      if casa.strip():
-        # Volver a cargar los datos por seguridad antes de agregar
+      # Si escribió algo en el campo de texto, tiene prioridad; si no, usa la seleccionada
+      casa_final = otra_casa.strip() if otra_casa.strip() else casa_seleccionada
+
+      if casa_final:
         registros_actuales = cargar_datos()
         if not isinstance(registros_actuales, list):
           registros_actuales = []
@@ -72,7 +83,7 @@ if menu == "Registrar Horas":
         nuevo_id = f"{len(registros_actuales) + 1}_{datetime.now().timestamp()}"
         nuevo_registro = {
             "id": nuevo_id,
-            "casa": casa.strip(),
+            "casa": casa_final,
             "horas": horas,
             "fecha": str(fecha),
             "nota": nota,
@@ -82,7 +93,7 @@ if menu == "Registrar Horas":
         st.success("¡Registro guardado con éxito!")
         st.rerun()
       else:
-        st.error("Por favor, indica el nombre de la casa.")
+        st.error("Por favor, selecciona o indica el nombre de la casa.")
 
 # ==========================================
 # SECCIÓN 2: HISTORIAL CON PESTAÑAS Y OPCIÓN DE EDITAR/BORRAR
@@ -97,7 +108,7 @@ elif menu == "Ver / Corregir Historial":
   if not registros:
     st.info("No hay registros guardados todavía.")
   else:
-    # Obtener la lista única de casas de forma segura
+    # Obtener la lista única de casas que ya tienen registros
     casas_disponibles = sorted(
         list(
             set(
@@ -116,7 +127,7 @@ elif menu == "Ver / Corregir Historial":
         with pestanas[i]:
           st.markdown(f"### Registros de {casa}")
 
-          # Filtrar los registros de esta casa de forma segura
+          # Filtrar los registros de esta casa
           registros_casa = [
               reg
               for reg in registros
@@ -153,11 +164,28 @@ elif menu == "Ver / Corregir Historial":
               if st.button("✏️ Editar", key=f"btn_edit_{reg_id}"):
                 st.session_state[f"editando_{reg_id}"] = True
 
-            # Si se presionó editar, se abre un pequeño formulario
+            # Si se presionó editar
             if st.session_state.get(f"editando_{reg_id}", False):
               with st.form(key=f"form_edit_{reg_id}"):
                 st.markdown(f"**Modificar registro:**")
-                nuevo_casa = st.text_input("Casa", value=reg_casa)
+
+                # Selector para editar la casa con las opciones por defecto
+                try:
+                  index_actual = CASAS_PREDEFINIDAS.index(reg_casa)
+                except ValueError:
+                  index_actual = (
+                      0  # Si no está en la lista fija, toma la primera por defecto
+                  )
+
+                nuevo_casa_sel = st.selectbox(
+                    "Selecciona la Casa",
+                    CASAS_PREDEFINIDAS,
+                    index=index_actual,
+                )
+                nuevo_otra_casa = st.text_input(
+                    "O escribe otra casa (opcional)", value=""
+                )
+
                 nuevas_horas = st.number_input(
                     "Horas", min_value=0.5, step=0.5, value=float(reg_horas)
                 )
@@ -172,11 +200,17 @@ elif menu == "Ver / Corregir Historial":
 
                 c_guardar, c_cancelar = st.columns(2)
                 if c_guardar.form_submit_button("Guardar Cambios"):
+                  casa_final_edit = (
+                      nuevo_otra_casa.strip()
+                      if nuevo_otra_casa.strip()
+                      else nuevo_casa_sel
+                  )
+
                   datos_actuales = cargar_datos()
                   if isinstance(datos_actuales, list):
                     for r in datos_actuales:
                       if r.get("id") == reg_id:
-                        r["casa"] = nuevo_casa.strip()
+                        r["casa"] = casa_final_edit
                         r["horas"] = nuevas_horas
                         r["fecha"] = str(nueva_fecha)
                         r["nota"] = nueva_nota
