@@ -86,8 +86,16 @@ elif menu == "Ver / Corregir Historial":
   if not registros:
     st.info("No hay registros guardados todavía.")
   else:
-    # Obtener la lista única de casas
-    casas_disponibles = sorted(list(set(reg["casa"] for reg in registros)))
+    # Obtener la lista única de casas de forma segura (evita errores con registros antiguos)
+    casas_disponibles = sorted(
+        list(
+            set(
+                reg.get("casa", "Casa Desconocida")
+                for reg in registros
+                if isinstance(reg, dict)
+            )
+        )
+    )
 
     if casas_disponibles:
       # Crear una pestaña por cada casa
@@ -97,67 +105,71 @@ elif menu == "Ver / Corregir Historial":
         with pestanas[i]:
           st.markdown(f"### Registros de {casa}")
 
-          # Filtrar los registros de esta casa
-          registros_casa = [reg for reg in registros if reg["casa"] == casa]
+          # Filtrar los registros de esta casa de forma segura
+          registros_casa = [
+              reg
+              for reg in registros
+              if isinstance(reg, dict)
+              and reg.get("casa", "Casa Desconocida") == casa
+          ]
 
           for reg in registros_casa:
-            st.markdown(
-                f"**{reg['casa']} - {reg['horas']} hrs** ({reg['fecha']})"
-            )
-            if reg.get("nota"):
-              st.write(f"Nota: {reg['nota']}")
+            reg_id = reg.get("id", str(datetime.now().timestamp()))
+            reg_casa = reg.get("casa", "Sin casa")
+            reg_horas = reg.get("horas", 0)
+            reg_fecha = reg.get("fecha", "")
+            reg_nota = reg.get("nota", "")
+
+            st.markdown(f"**{reg_casa} - {reg_horas} hrs** ({reg_fecha})")
+            if reg_nota:
+              st.write(f"Nota: {reg_nota}")
 
             # Botones de Borrar y Editar lado a lado
             col1, col2 = st.columns(2)
 
             with col1:
-              if st.button("🗑️ Borrar", key=f"borrar_{reg['id']}"):
-                registros = [r for r in registros if r["id"] != reg["id"]]
+              if st.button("🗑️ Borrar", key=f"borrar_{reg_id}"):
+                registros = [r for r in registros if r.get("id") != reg_id]
                 guardar_datos(registros)
                 st.success("Registro eliminado correctamente.")
                 st.rerun()
 
             with col2:
-              if st.button("✏️ Editar", key=f"btn_edit_{reg['id']}"):
-                st.session_state[f"editando_{reg['id']}"] = True
+              if st.button("✏️ Editar", key=f"btn_edit_{reg_id}"):
+                st.session_state[f"editando_{reg_id}"] = True
 
-            # Si se presionó editar, se abre un pequeño formulario para cambiar los datos
-            if st.session_state.get(f"editando_{reg['id']}", False):
-              with st.form(key=f"form_edit_{reg['id']}"):
+            # Si se presionó editar, se abre un pequeño formulario
+            if st.session_state.get(f"editando_{reg_id}", False):
+              with st.form(key=f"form_edit_{reg_id}"):
                 st.markdown(f"**Modificar registro:**")
-                nuevo_casa = st.text_input("Casa", value=reg["casa"])
+                nuevo_casa = st.text_input("Casa", value=reg_casa)
                 nuevas_horas = st.number_input(
-                    "Horas",
-                    min_value=0.5,
-                    step=0.5,
-                    value=float(reg["horas"]),
+                    "Horas", min_value=0.5, step=0.5, value=float(reg_horas)
                 )
 
                 try:
-                  fecha_obj = datetime.strptime(
-                      reg["fecha"], "%Y-%m-%d"
-                  ).date()
+                  fecha_obj = datetime.strptime(reg_fecha, "%Y-%m-%d").date()
                 except:
                   fecha_obj = date.today()
 
                 nueva_fecha = st.date_input("Fecha", value=fecha_obj)
-                nueva_nota = st.text_area("Nota", value=reg.get("nota", ""))
+                nueva_nota = st.text_area("Nota", value=reg_nota)
 
                 c_guardar, c_cancelar = st.columns(2)
                 if c_guardar.form_submit_button("Guardar Cambios"):
                   for r in registros:
-                    if r["id"] == reg["id"]:
+                    if r.get("id") == reg_id:
                       r["casa"] = nuevo_casa.strip()
                       r["horas"] = nuevas_horas
                       r["fecha"] = str(nueva_fecha)
                       r["nota"] = nueva_nota
                   guardar_datos(registros)
-                  st.session_state[f"editando_{reg['id']}"] = False
+                  st.session_state[f"editando_{reg_id}"] = False
                   st.success("¡Modificado con éxito!")
                   st.rerun()
 
                 if c_cancelar.form_submit_button("Cancelar"):
-                  st.session_state[f"editando_{reg['id']}"] = False
+                  st.session_state[f"editando_{reg_id}"] = False
                   st.rerun()
 
             st.markdown("---")
