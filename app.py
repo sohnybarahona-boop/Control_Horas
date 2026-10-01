@@ -5,22 +5,25 @@ import io
 st.set_page_config(page_title="Control de Horas - Casas", page_icon="🏠", layout="wide")
 
 st.title("🏠 Sistema de Control y Registro de Horas")
-st.markdown("Gestiona las horas que debes, registra tus actividades devengadas y consulta el resumen general por propiedad.")
+st.markdown("Gestiona las horas que debes, registra, edita o elimina actividades devengadas y consulta el resumen general.")
 
 # Inicializar estado para las dos casas si no existe
 if "casa1_df" not in st.session_state:
     st.session_state.casa1_df = pd.DataFrame([
-        {"Fecha": "2026-09-01", "Descripción / Actividad": "Limpieza general y orden de habitaciones", "Categoría": "Mantenimiento", "Horas Devengadas": 5.0, "Observaciones": "Completado"},
-        {"Fecha": "2026-09-10", "Descripción / Actividad": "Revisión de instalaciones eléctricas", "Categoría": "Reparación", "Horas Devengadas": 3.5, "Observaciones": "Sin novedad"},
+        {"ID": 1, "Fecha": "2026-09-01", "Descripción / Actividad": "Limpieza general y orden de habitaciones", "Categoría": "Mantenimiento", "Horas Devengadas": 5.0, "Observaciones": "Completado"},
+        {"ID": 2, "Fecha": "2026-09-10", "Descripción / Actividad": "Revisión de instalaciones eléctricas", "Categoría": "Reparación", "Horas Devengadas": 3.5, "Observaciones": "Sin novedad"},
     ])
 
 if "casa2_df" not in st.session_state:
     st.session_state.casa2_df = pd.DataFrame([
-        {"Fecha": "2026-09-05", "Descripción / Actividad": "Jardinería y áreas verdes", "Categoría": "Exteriores", "Horas Devengadas": 4.0, "Observaciones": "Completado"},
+        {"ID": 1, "Fecha": "2026-09-05", "Descripción / Actividad": "Jardinería y áreas verdes", "Categoría": "Exteriores", "Horas Devengadas": 4.0, "Observaciones": "Completado"},
     ])
 
 if "horas_debo" not in st.session_state:
     st.session_state.horas_debo = {"Casa 1": 40.0, "Casa 2": 40.0}
+
+if "counter_id" not in st.session_state:
+    st.session_state.counter_id = 10
 
 # --- SECCIÓN 1: RESUMEN GENERAL (ARRIBA) ---
 st.header("📊 Resumen General")
@@ -62,50 +65,102 @@ with col_s2:
 
 st.divider()
 
-# --- SECCIÓN 2: PESTAÑAS PARA CADA CASA Y REGISTRO / HISTORIAL ---
-st.header("📝 Registro e Historial por Casa")
+# --- SECCIÓN 2: PESTAÑAS PARA CADA CASA (REGISTRO, EDICIÓN Y ELIMINACIÓN) ---
+st.header("📝 Registro, Edición e Historial por Casa")
 tab1, tab2 = st.tabs(["Casa 1", "Casa 2"])
 
-def house_manager(house_name, df_key, debo_val):
-    st.subheader(f"Historial y Registro de Horas - {house_name}")
+def house_manager(house_name, df_key):
+    st.subheader(f"Gestión de Actividades - {house_name}")
     
-    # Formulario para registrar horas
-    with st.form(key=f"form_{house_name}"):
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            f_fecha = st.date_input("Fecha")
-        with col2:
-            f_cat = st.selectbox("Categoría", ["Mantenimiento", "Reparación", "Exteriores", "Limpieza", "Otro"])
-        with col3:
-            f_horas = st.number_input("Horas Devengadas", min_value=0.0, step=0.5, value=1.0)
+    # 1. Formulario para Agregar Nuevo Registro
+    with st.expander("➕ Agregar Nuevo Registro de Horas", expanded=False):
+        with st.form(key=f"form_add_{house_name}"):
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                f_fecha = st.date_input("Fecha", key=f"add_f_{house_name}")
+            with col2:
+                f_cat = st.selectbox("Categoría", ["Mantenimiento", "Reparación", "Exteriores", "Limpieza", "Otro"], key=f"add_c_{house_name}")
+            with col3:
+                f_horas = st.number_input("Horas Devengadas", min_value=0.0, step=0.5, value=1.0, key=f"add_h_{house_name}")
+                
+            f_desc = st.text_input("Descripción / Actividad", key=f"add_d_{house_name}")
+            f_obs = st.text_input("Observaciones", key=f"add_o_{house_name}")
             
-        f_desc = st.text_input("Descripción / Actividad")
-        f_obs = st.text_input("Observaciones")
-        
-        submitted = st.form_submit_button("Registrar Horas")
-        if submitted and f_desc:
-            new_row = {
-                "Fecha": str(f_fecha),
-                "Descripción / Actividad": f_desc,
-                "Categoría": f_cat,
-                "Horas Devengadas": f_horas,
-                "Observaciones": f_obs
-            }
-            st.session_state[df_key] = pd.concat([st.session_state[df_key], pd.DataFrame([new_row])], ignore_index=True)
-            st.success(f"¡Horas registradas exitosamente para {house_name}!")
-            st.rerun()
+            submitted = st.form_submit_button("Guardar Nuevo Registro")
+            if submitted and f_desc:
+                st.session_state.counter_id += 1
+                new_row = {
+                    "ID": st.session_state.counter_id,
+                    "Fecha": str(f_fecha),
+                    "Descripción / Actividad": f_desc,
+                    "Categoría": f_cat,
+                    "Horas Devengadas": f_horas,
+                    "Observaciones": f_obs
+                }
+                st.session_state[df_key] = pd.concat([st.session_state[df_key], pd.DataFrame([new_row])], ignore_index=True)
+                st.success(f"¡Registro agregado exitosamente en {house_name}!")
+                st.rerun()
 
+    # Mostrar tabla actual
+    df = st.session_state[df_key]
     st.markdown("### Historial de Actividades")
-    st.dataframe(st.session_state[df_key], use_container_width=True, hide_index=True)
+    if df.empty:
+        st.info("No hay registros todavía.")
+        return
+
+    st.dataframe(df, use_container_width=True, hide_index=True)
     
-    total_dev = st.session_state[df_key]["Horas Devengadas"].sum() if not st.session_state[df_key].empty else 0.0
+    total_dev = df["Horas Devengadas"].sum()
     st.metric(label=f"Total Horas Devengadas ({house_name})", value=f"{total_dev:.2f} hrs")
 
+    st.divider()
+    
+    # 2. Sección para Editar o Eliminar registros existentes
+    st.markdown("### ✏️ Editar o 🗑️ Eliminar Registro Existente")
+    
+    record_options = {f"ID {row['ID']} - {row['Fecha']} - {row['Descripción / Actividad']}": row['ID'] for _, row in df.iterrows()}
+    
+    if record_options:
+        selected_label = st.selectbox("Selecciona el registro a modificar o eliminar", list(record_options.keys()), key=f"sel_{house_name}")
+        selected_id = record_options[selected_label]
+        
+        record_idx = df.index[df['ID'] == selected_id].tolist()[0]
+        curr_row = df.loc[record_idx]
+        
+        col_ed1, col_ed2 = st.columns(2)
+        
+        with col_ed1:
+            st.markdown("#### Editar Registro")
+            with st.form(key=f"form_edit_{house_name}_{selected_id}"):
+                edit_fecha = st.text_input("Fecha (YYYY-MM-DD)", value=str(curr_row["Fecha"]))
+                edit_cat = st.selectbox("Categoría", ["Mantenimiento", "Reparación", "Exteriores", "Limpieza", "Otro"], index=["Mantenimiento", "Reparación", "Exteriores", "Limpieza", "Otro"].index(curr_row["Categoría"]) if curr_row["Categoría"] in ["Mantenimiento", "Reparación", "Exteriores", "Limpieza", "Otro"] else 0)
+                edit_horas = st.number_input("Horas Devengadas", value=float(curr_row["Horas Devengadas"]), step=0.5)
+                edit_desc = st.text_input("Descripción / Actividad", value=str(curr_row["Descripción / Actividad"]))
+                edit_obs = st.text_input("Observaciones", value=str(curr_row["Observaciones"]))
+                
+                update_btn = st.form_submit_button("Actualizar Registro")
+                if update_btn:
+                    st.session_state[df_key].loc[record_idx, "Fecha"] = edit_fecha
+                    st.session_state[df_key].loc[record_idx, "Categoría"] = edit_cat
+                    st.session_state[df_key].loc[record_idx, "Horas Devengadas"] = edit_horas
+                    st.session_state[df_key].loc[record_idx, "Descripción / Actividad"] = edit_desc
+                    st.session_state[df_key].loc[record_idx, "Observaciones"] = edit_obs
+                    st.success("¡Registro actualizado con éxito!")
+                    st.rerun()
+                    
+        with col_ed2:
+            st.markdown("#### Eliminar Registro")
+            st.warning("Esta acción borrará el registro seleccionado permanentemente.")
+            if st.button("🗑️ Eliminar este registro", key=f"del_btn_{house_name}_{selected_id}"):
+                st.session_state[df_key] = df.drop(record_idx).reset_index(drop=True)
+                st.success("¡Registro eliminado correctamente!")
+                st.rerun()
+
 with tab1:
-    house_manager("Casa 1", "casa1_df", debo_1)
+    house_manager("Casa 1", "casa1_df")
 
 with tab2:
-    house_manager("Casa 2", "casa2_df", debo_2)
+    house_manager("Casa 2", "casa2_df")
 
 st.divider()
 
@@ -115,8 +170,8 @@ if st.button("Generar Archivo Excel para Descarga"):
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
         df_summary.to_excel(writer, sheet_name="Resumen General", index=False)
-        st.session_state.casa1_df.to_excel(writer, sheet_name="Casa 1", index=False)
-        st.session_state.casa2_df.to_excel(writer, sheet_name="Casa 2", index=False)
+        st.session_state.casa1_df.drop(columns=["ID"], errors="ignore").to_excel(writer, sheet_name="Casa 1", index=False)
+        st.session_state.casa2_df.drop(columns=["ID"], errors="ignore").to_excel(writer, sheet_name="Casa 2", index=False)
     
     processed_data = output.getvalue()
     st.download_button(
