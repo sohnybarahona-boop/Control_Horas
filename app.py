@@ -1,20 +1,20 @@
 import streamlit as st
 import pandas as pd
 import io
+import json
 
 st.set_page_config(page_title="Control de Horas - Casas", page_icon="🏠", layout="wide")
 
 st.title("🏠 Sistema de Control y Registro de Horas")
 st.markdown("Gestiona las horas que debes, registra, edita o elimina actividades devengadas y consulta el resumen general.")
 
-# Inicializar estado para las dos casas si no existe
+# 1. Inicializar estados
 if "casa1_df" not in st.session_state:
     st.session_state.casa1_df = pd.DataFrame(columns=["ID", "Fecha", "Horas Devengadas", "Observaciones"])
 
 if "casa2_df" not in st.session_state:
     st.session_state.casa2_df = pd.DataFrame(columns=["ID", "Fecha", "Horas Devengadas", "Observaciones"])
 
-# Inicializar estado de horas que debo en session_state con keys independientes para evitar que se borren
 if "horas_debo_1" not in st.session_state:
     st.session_state.horas_debo_1 = 0.0
 
@@ -23,6 +23,44 @@ if "horas_debo_2" not in st.session_state:
 
 if "counter_id" not in st.session_state:
     st.session_state.counter_id = 10
+
+# --- SECCIÓN DE RESPALDO (CARGAR / DESCARGAR DATOS) ---
+with st.expander("💾 Respaldar o Recuperar tus Datos (Evita perder información)", expanded=False):
+    col_b1, col_b2 = st.columns(2)
+    
+    with col_b1:
+        st.markdown("**Guardar Respaldo Actual**")
+        backup_data = {
+            "horas_debo_1": st.session_state.horas_debo_1,
+            "horas_debo_2": st.session_state.horas_debo_2,
+            "casa1": st.session_state.casa1_df.to_dict(orient="records"),
+            "casa2": st.session_state.casa2_df.to_dict(orient="records"),
+            "counter_id": st.session_state.counter_id
+        }
+        st.download_button(
+            label="📥 Descargar Archivo de Respaldo (.json)",
+            data=json.dumps(backup_data, ensure_ascii=False, indent=4),
+            file_name="respaldo_horas.json",
+            mime="application/json"
+        )
+        
+    with col_b2:
+        st.markdown("**Restaurar Datos Anteriores**")
+        uploaded_file = st.file_uploader("Sube tu archivo de respaldo (.json)", type=["json"])
+        if uploaded_file is not None:
+            try:
+                loaded_data = json.load(uploaded_file)
+                st.session_state.horas_debo_1 = loaded_data.get("horas_debo_1", 0.0)
+                st.session_state.horas_debo_2 = loaded_data.get("horas_debo_2", 0.0)
+                st.session_state.casa1_df = pd.DataFrame(loaded_data.get("casa1", []))
+                st.session_state.casa2_df = pd.DataFrame(loaded_data.get("casa2", []))
+                st.session_state.counter_id = loaded_data.get("counter_id", 10)
+                st.success("¡Datos restaurados con éxito!")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Error al leer el archivo: {e}")
+
+st.divider()
 
 # --- SECCIÓN 1: RESUMEN GENERAL (ARRIBA) ---
 st.header("📊 Resumen General")
