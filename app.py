@@ -7,16 +7,15 @@ st.set_page_config(page_title="Control de Horas - Casas", page_icon="🏠", layo
 st.title("🏠 Sistema de Control y Registro de Horas")
 st.markdown("Gestiona las horas que debes, registra, edita o elimina actividades devengadas y consulta el resumen general.")
 
-# Inicializar estado para las dos casas completamente vacío
+# Inicializar estado para las dos casas completamente vacío para que no arrastre datos de prueba
 if "casa1_df" not in st.session_state:
     st.session_state.casa1_df = pd.DataFrame(columns=["ID", "Fecha", "Horas Devengadas", "Observaciones"])
 
 if "casa2_df" not in st.session_state:
     st.session_state.casa2_df = pd.DataFrame(columns=["ID", "Fecha", "Horas Devengadas", "Observaciones"])
 
-
 if "horas_debo" not in st.session_state:
-    st.session_state.horas_debo = {"Casa 1": 40.0, "Casa 2": 40.0}
+    st.session_state.horas_debo = {"Casa 1": 0.0, "Casa 2": 0.0}
 
 if "counter_id" not in st.session_state:
     st.session_state.counter_id = 10
@@ -39,14 +38,14 @@ summary_data = [
         "Horas Totales que Debo": debo_1,
         "Horas Totales Devengadas": total_casa1,
         "Horas Restantes": restante_1,
-        "Estado": "Completado" if restante_1 <= 0 else "Pendiente"
+        "Estado": "Completado" if restante_1 <= 0 and debo_1 > 0 else "Pendiente"
     },
     {
         "Casa / Propiedad": "Casa 2",
         "Horas Totales que Debo": debo_2,
         "Horas Totales Devengadas": total_casa2,
         "Horas Restantes": restante_2,
-        "Estado": "Completado" if restante_2 <= 0 else "Pendiente"
+        "Estado": "Completado" if restante_2 <= 0 and debo_2 > 0 else "Pendiente"
     }
 ]
 
@@ -55,9 +54,9 @@ st.dataframe(df_summary, use_container_width=True, hide_index=True)
 
 col_s1, col_s2 = st.columns(2)
 with col_s1:
-    st.session_state.horas_debo["Casa 1"] = st.number_input("Ajustar Horas que Debes - Casa 1", value=float(debo_1), step=1.0)
+    st.session_state.horas_debo["Casa 1"] = st.number_input("Ajustar Horas que Debes - Casa 1", value=float(debo_1), step=1.0, min_value=0.0)
 with col_s2:
-    st.session_state.horas_debo["Casa 2"] = st.number_input("Ajustar Horas que Debes - Casa 2", value=float(debo_2), step=1.0)
+    st.session_state.horas_debo["Casa 2"] = st.number_input("Ajustar Horas que Debes - Casa 2", value=float(debo_2), step=1.0, min_value=0.0)
 
 st.divider()
 
@@ -68,7 +67,7 @@ tab1, tab2 = st.tabs(["Casa 1", "Casa 2"])
 def house_manager(house_name, df_key):
     st.subheader(f"Gestión de Actividades - {house_name}")
     
-    # 1. Formulario para Agregar Nuevo Registro (Sin Categoría ni Descripción)
+    # 1. Formulario para Agregar Nuevo Registro
     with st.expander("➕ Agregar Nuevo Registro de Horas", expanded=False):
         with st.form(key=f"form_add_{house_name}"):
             col1, col2 = st.columns(2)
