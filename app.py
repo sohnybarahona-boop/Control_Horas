@@ -6,8 +6,11 @@ import streamlit as st
 # Archivo local donde se guardarán los datos de forma persistente
 DATA_FILE = "data.json"
 
-# Lista predeterminada de tus casas (puedes modificarla o agregar más cuando quieras)
+# Lista predefinida de tus casas
 CASAS_PREDEFINIDAS = ["Casa #1", "Casa #2", "Casa #3", "Otra casa"]
+
+# 🎯 METAS DE HORAS POR CASA (Puedes cambiar los números según lo que necesites devengar en cada una)
+METAS_CASAS = {"Casa #1": 40.0, "Casa #2": 30.0, "Casa #3": 20.0}
 
 
 def cargar_datos():
@@ -56,10 +59,7 @@ if menu == "Registrar Horas":
   st.subheader("Registrar Nuevas Horas")
 
   with st.form("form_registro", clear_on_submit=True):
-    # Selector desplegable de casas predefinidas
     casa_seleccionada = st.selectbox("Selecciona la Casa", CASAS_PREDEFINIDAS)
-
-    # Por si acaso quiere escribir una nueva que no esté en la lista fija
     otra_casa = st.text_input(
         "O escribe el nombre si no está en la lista (opcional)"
     )
@@ -72,7 +72,6 @@ if menu == "Registrar Horas":
 
     submitted = st.form_submit_button("Guardar Registro")
     if submitted:
-      # Si escribió algo en el campo de texto, tiene prioridad; si no, usa la seleccionada
       casa_final = otra_casa.strip() if otra_casa.strip() else casa_seleccionada
 
       if casa_final:
@@ -96,12 +95,12 @@ if menu == "Registrar Horas":
         st.error("Por favor, selecciona o indica el nombre de la casa.")
 
 # ==========================================
-# SECCIÓN 2: HISTORIAL CON PESTAÑAS Y OPCIÓN DE EDITAR/BORRAR
+# SECCIÓN 2: HISTORIAL, RESUMEN Y OPCIONES
 # ==========================================
 elif menu == "Ver / Corregir Historial":
   st.subheader("Historial de registros y correcciones")
   st.write(
-      "Puedes **eliminar** un registro o **editarlo** directamente si te"
+      "Consulta el resumen de horas, elimina o edita registros si te"
       " equivocaste en algo:"
   )
 
@@ -125,8 +124,6 @@ elif menu == "Ver / Corregir Historial":
 
       for i, casa in enumerate(casas_disponibles):
         with pestanas[i]:
-          st.markdown(f"### Registros de {casa}")
-
           # Filtrar los registros de esta casa
           registros_casa = [
               reg
@@ -134,6 +131,28 @@ elif menu == "Ver / Corregir Historial":
               if isinstance(reg, dict)
               and reg.get("casa", "Casa Desconocida") == casa
           ]
+
+          # --- CÁLCULO DE RESUMEN Y FALTANTE ---
+          total_horas = sum(float(r.get("horas", 0)) for r in registros_casa)
+          meta_casa = METAS_CASAS.get(
+              casa, 0.0
+          )  # Si no tiene meta fija, asume 0 o puedes cambiarlo
+          falta_por_devengar = max(
+              0.0, meta_casa - total_horas
+          ) if meta_casa > 0 else 0.0
+
+          # Mostrar tarjeta de resumen visual
+          st.markdown(f"### 📊 Resumen de {casa}")
+          col_r1, col_r2, col_r3 = st.columns(3)
+          col_r1.metric("Total Acumulado", f"{total_horas} hrs")
+          if meta_casa > 0:
+            col_r2.metric("Meta / Total", f"{meta_casa} hrs")
+            col_r3.metric("Falta por devengar", f"{falta_por_devengar} hrs")
+          else:
+            col_r2.metric("Meta configurada", "Sin meta fija")
+
+          st.markdown("---")
+          st.markdown(f"### 📝 Detalle de registros")
 
           for reg in registros_casa:
             reg_id = reg.get("id", str(datetime.now().timestamp()))
@@ -169,13 +188,10 @@ elif menu == "Ver / Corregir Historial":
               with st.form(key=f"form_edit_{reg_id}"):
                 st.markdown(f"**Modificar registro:**")
 
-                # Selector para editar la casa con las opciones por defecto
                 try:
                   index_actual = CASAS_PREDEFINIDAS.index(reg_casa)
                 except ValueError:
-                  index_actual = (
-                      0  # Si no está en la lista fija, toma la primera por defecto
-                  )
+                  index_actual = 0
 
                 nuevo_casa_sel = st.selectbox(
                     "Selecciona la Casa",
