@@ -1,242 +1,127 @@
-from datetime import date, datetime
-import json
-import os
 import streamlit as st
+import pandas as pd
+import io
 
-# Archivo local donde se guardarán los datos de forma persistente
-DATA_FILE = "data.json"
+st.set_page_config(page_title="Control de Horas - Casas", page_icon="🏠", layout="wide")
 
-# Lista predefinida de tus casas
-CASAS_PREDEFINIDAS = ["Casa #1", "Casa #2", "Casa #3", "Otra casa"]
+st.title("🏠 Sistema de Control y Registro de Horas")
+st.markdown("Gestiona las horas que debes, registra tus actividades devengadas y consulta el resumen general por propiedad.")
 
-# 🎯 METAS DE HORAS POR CASA (Puedes cambiar los números según lo que necesites devengar en cada una)
-METAS_CASAS = {"Casa #1": 40.0, "Casa #2": 30.0, "Casa #3": 20.0}
+# Inicializar estado para las dos casas si no existe
+if "casa1_df" not in st.session_state:
+    st.session_state.casa1_df = pd.DataFrame([
+        {"Fecha": "2026-09-01", "Descripción / Actividad": "Limpieza general y orden de habitaciones", "Categoría": "Mantenimiento", "Horas Devengadas": 5.0, "Observaciones": "Completado"},
+        {"Fecha": "2026-09-10", "Descripción / Actividad": "Revisión de instalaciones eléctricas", "Categoría": "Reparación", "Horas Devengadas": 3.5, "Observaciones": "Sin novedad"},
+    ])
 
+if "casa2_df" not in st.session_state:
+    st.session_state.casa2_df = pd.DataFrame([
+        {"Fecha": "2026-09-05", "Descripción / Actividad": "Jardinería y áreas verdes", "Categoría": "Exteriores", "Horas Devengadas": 4.0, "Observaciones": "Completado"},
+    ])
 
-def cargar_datos():
-  if os.path.exists(DATA_FILE):
-    with open(DATA_FILE, "r", encoding="utf-8") as f:
-      try:
-        datos = json.load(f)
-        if isinstance(datos, list):
-          return datos
-        else:
-          return []
-      except json.JSONDecodeError:
-        return []
-  return []
+if "horas_debo" not in st.session_state:
+    st.session_state.horas_debo = {"Casa 1": 40.0, "Casa 2": 40.0}
 
+# --- SECCIÓN 1: RESUMEN GENERAL (ARRIBA) ---
+st.header("📊 Resumen General")
 
-def guardar_datos(registros):
-  with open(DATA_FILE, "w", encoding="utf-8") as f:
-    json.dump(registros, f, ensure_ascii=False, indent=4)
+total_casa1 = st.session_state.casa1_df["Horas Devengadas"].sum() if not st.session_state.casa1_df.empty else 0.0
+total_casa2 = st.session_state.casa2_df["Horas Devengadas"].sum() if not st.session_state.casa2_df.empty else 0.0
 
+debo_1 = st.session_state.horas_debo["Casa 1"]
+debo_2 = st.session_state.horas_debo["Casa 2"]
 
-# Configuración de la página
-st.set_page_config(
-    page_title="Control de Horas", page_icon="⏱️", layout="centered"
-)
+restante_1 = debo_1 - total_casa1
+restante_2 = debo_2 - total_casa2
 
-# Cargar los registros existentes asegurando que sea una lista
-registros = cargar_datos()
-if not isinstance(registros, list):
-  registros = []
+summary_data = [
+    {
+        "Casa / Propiedad": "Casa 1",
+        "Horas Totales que Debo": debo_1,
+        "Horas Totales Devengadas": total_casa1,
+        "Horas Restantes": restante_1,
+        "Estado": "Completado" if restante_1 <= 0 else "Pendiente"
+    },
+    {
+        "Casa / Propiedad": "Casa 2",
+        "Horas Totales que Debo": debo_2,
+        "Horas Totales Devengadas": total_casa2,
+        "Horas Restantes": restante_2,
+        "Estado": "Completado" if restante_2 <= 0 else "Pendiente"
+    }
+]
 
-# Menú superior estilo pestañas
-menu = st.radio(
-    "Navegación",
-    ["Registrar Horas", "Ver / Corregir Historial"],
-    label_visibility="collapsed",
-    horizontal=True,
-)
+df_summary = pd.DataFrame(summary_data)
+st.dataframe(df_summary, use_container_width=True, hide_index=True)
 
-st.markdown("---")
+col_s1, col_s2 = st.columns(2)
+with col_s1:
+    st.session_state.horas_debo["Casa 1"] = st.number_input("Ajustar Horas que Debes - Casa 1", value=float(debo_1), step=1.0)
+with col_s2:
+    st.session_state.horas_debo["Casa 2"] = st.number_input("Ajustar Horas que Debes - Casa 2", value=float(debo_2), step=1.0)
 
-# ==========================================
-# SECCIÓN 1: REGISTRAR HORAS
-# ==========================================
-if menu == "Registrar Horas":
-  st.subheader("Registrar Nuevas Horas")
+st.divider()
 
-  with st.form("form_registro", clear_on_submit=True):
-    casa_seleccionada = st.selectbox("Selecciona la Casa", CASAS_PREDEFINIDAS)
-    otra_casa = st.text_input(
-        "O escribe el nombre si no está en la lista (opcional)"
+# --- SECCIÓN 2: PESTAÑAS PARA CADA CASA Y REGISTRO / HISTORIAL ---
+st.header("📝 Registro e Historial por Casa")
+tab1, tab2 = st.tabs(["Casa 1", "Casa 2"])
+
+def house_manager(house_name, df_key, debo_val):
+    st.subheader(f"Historial y Registro de Horas - {house_name}")
+    
+    # Formulario para registrar horas
+    with st.form(key=f"form_{house_name}"):
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            f_fecha = st.date_input("Fecha")
+        with col2:
+            f_cat = st.selectbox("Categoría", ["Mantenimiento", "Reparación", "Exteriores", "Limpieza", "Otro"])
+        with col3:
+            f_horas = st.number_input("Horas Devengadas", min_value=0.0, step=0.5, value=1.0)
+            
+        f_desc = st.text_input("Descripción / Actividad")
+        f_obs = st.text_input("Observaciones")
+        
+        submitted = st.form_submit_button("Registrar Horas")
+        if submitted and f_desc:
+            new_row = {
+                "Fecha": str(f_fecha),
+                "Descripción / Actividad": f_desc,
+                "Categoría": f_cat,
+                "Horas Devengadas": f_horas,
+                "Observaciones": f_obs
+            }
+            st.session_state[df_key] = pd.concat([st.session_state[df_key], pd.DataFrame([new_row])], ignore_index=True)
+            st.success(f"¡Horas registradas exitosamente para {house_name}!")
+            st.rerun()
+
+    st.markdown("### Historial de Actividades")
+    st.dataframe(st.session_state[df_key], use_container_width=True, hide_index=True)
+    
+    total_dev = st.session_state[df_key]["Horas Devengadas"].sum() if not st.session_state[df_key].empty else 0.0
+    st.metric(label=f"Total Horas Devengadas ({house_name})", value=f"{total_dev:.2f} hrs")
+
+with tab1:
+    house_manager("Casa 1", "casa1_df", debo_1)
+
+with tab2:
+    house_manager("Casa 2", "casa2_df", debo_2)
+
+st.divider()
+
+# --- EXPORTAR A EXCEL ---
+st.subheader("📥 Descargar Reporte en Excel")
+if st.button("Generar Archivo Excel para Descarga"):
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df_summary.to_excel(writer, sheet_name="Resumen General", index=False)
+        st.session_state.casa1_df.to_excel(writer, sheet_name="Casa 1", index=False)
+        st.session_state.casa2_df.to_excel(writer, sheet_name="Casa 2", index=False)
+    
+    processed_data = output.getvalue()
+    st.download_button(
+        label="📥 Descargar Excel con Resumen y Casas",
+        data=processed_data,
+        file_name="Control_Horas_Casas.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
-
-    horas = st.number_input(
-        "Cantidad de Horas", min_value=0.5, step=0.5, value=1.0
-    )
-    fecha = st.date_input("Fecha", value=date.today())
-    nota = st.text_area("Nota o descripción (opcional)")
-
-    submitted = st.form_submit_button("Guardar Registro")
-    if submitted:
-      casa_final = otra_casa.strip() if otra_casa.strip() else casa_seleccionada
-
-      if casa_final:
-        registros_actuales = cargar_datos()
-        if not isinstance(registros_actuales, list):
-          registros_actuales = []
-
-        nuevo_id = f"{len(registros_actuales) + 1}_{datetime.now().timestamp()}"
-        nuevo_registro = {
-            "id": nuevo_id,
-            "casa": casa_final,
-            "horas": horas,
-            "fecha": str(fecha),
-            "nota": nota,
-        }
-        registros_actuales.append(nuevo_registro)
-        guardar_datos(registros_actuales)
-        st.success("¡Registro guardado con éxito!")
-        st.rerun()
-      else:
-        st.error("Por favor, selecciona o indica el nombre de la casa.")
-
-# ==========================================
-# SECCIÓN 2: HISTORIAL, RESUMEN Y OPCIONES
-# ==========================================
-elif menu == "Ver / Corregir Historial":
-  st.subheader("Historial de registros y correcciones")
-  st.write(
-      "Consulta el resumen de horas, elimina o edita registros si te"
-      " equivocaste en algo:"
-  )
-
-  if not registros:
-    st.info("No hay registros guardados todavía.")
-  else:
-    # Obtener la lista única de casas que ya tienen registros
-    casas_disponibles = sorted(
-        list(
-            set(
-                reg.get("casa", "Casa Desconocida")
-                for reg in registros
-                if isinstance(reg, dict)
-            )
-        )
-    )
-
-    if casas_disponibles:
-      # Crear una pestaña por cada casa
-      pestanas = st.tabs(casas_disponibles)
-
-      for i, casa in enumerate(casas_disponibles):
-        with pestanas[i]:
-          # Filtrar los registros de esta casa
-          registros_casa = [
-              reg
-              for reg in registros
-              if isinstance(reg, dict)
-              and reg.get("casa", "Casa Desconocida") == casa
-          ]
-
-          # --- CÁLCULO DE RESUMEN Y FALTANTE ---
-          total_horas = sum(float(r.get("horas", 0)) for r in registros_casa)
-          meta_casa = METAS_CASAS.get(
-              casa, 0.0
-          )  # Si no tiene meta fija, asume 0 o puedes cambiarlo
-          falta_por_devengar = max(
-              0.0, meta_casa - total_horas
-          ) if meta_casa > 0 else 0.0
-
-          # Mostrar tarjeta de resumen visual
-          st.markdown(f"### 📊 Resumen de {casa}")
-          col_r1, col_r2, col_r3 = st.columns(3)
-          col_r1.metric("Total Acumulado", f"{total_horas} hrs")
-          if meta_casa > 0:
-            col_r2.metric("Meta / Total", f"{meta_casa} hrs")
-            col_r3.metric("Falta por devengar", f"{falta_por_devengar} hrs")
-          else:
-            col_r2.metric("Meta configurada", "Sin meta fija")
-
-          st.markdown("---")
-          st.markdown(f"### 📝 Detalle de registros")
-
-          for reg in registros_casa:
-            reg_id = reg.get("id", str(datetime.now().timestamp()))
-            reg_casa = reg.get("casa", "Sin casa")
-            reg_horas = reg.get("horas", 0)
-            reg_fecha = reg.get("fecha", "")
-            reg_nota = reg.get("nota", "")
-
-            st.markdown(f"**{reg_casa} - {reg_horas} hrs** ({reg_fecha})")
-            if reg_nota:
-              st.write(f"Nota: {reg_nota}")
-
-            # Botones de Borrar y Editar lado a lado
-            col1, col2 = st.columns(2)
-
-            with col1:
-              if st.button("🗑️ Borrar", key=f"borrar_{reg_id}"):
-                datos_actuales = cargar_datos()
-                if isinstance(datos_actuales, list):
-                  datos_actuales = [
-                      r for r in datos_actuales if r.get("id") != reg_id
-                  ]
-                  guardar_datos(datos_actuales)
-                st.success("Registro eliminado correctamente.")
-                st.rerun()
-
-            with col2:
-              if st.button("✏️ Editar", key=f"btn_edit_{reg_id}"):
-                st.session_state[f"editando_{reg_id}"] = True
-
-            # Si se presionó editar
-            if st.session_state.get(f"editando_{reg_id}", False):
-              with st.form(key=f"form_edit_{reg_id}"):
-                st.markdown(f"**Modificar registro:**")
-
-                try:
-                  index_actual = CASAS_PREDEFINIDAS.index(reg_casa)
-                except ValueError:
-                  index_actual = 0
-
-                nuevo_casa_sel = st.selectbox(
-                    "Selecciona la Casa",
-                    CASAS_PREDEFINIDAS,
-                    index=index_actual,
-                )
-                nuevo_otra_casa = st.text_input(
-                    "O escribe otra casa (opcional)", value=""
-                )
-
-                nuevas_horas = st.number_input(
-                    "Horas", min_value=0.5, step=0.5, value=float(reg_horas)
-                )
-
-                try:
-                  fecha_obj = datetime.strptime(reg_fecha, "%Y-%m-%d").date()
-                except:
-                  fecha_obj = date.today()
-
-                nueva_fecha = st.date_input("Fecha", value=fecha_obj)
-                nueva_nota = st.text_area("Nota", value=reg_nota)
-
-                c_guardar, c_cancelar = st.columns(2)
-                if c_guardar.form_submit_button("Guardar Cambios"):
-                  casa_final_edit = (
-                      nuevo_otra_casa.strip()
-                      if nuevo_otra_casa.strip()
-                      else nuevo_casa_sel
-                  )
-
-                  datos_actuales = cargar_datos()
-                  if isinstance(datos_actuales, list):
-                    for r in datos_actuales:
-                      if r.get("id") == reg_id:
-                        r["casa"] = casa_final_edit
-                        r["horas"] = nuevas_horas
-                        r["fecha"] = str(nueva_fecha)
-                        r["nota"] = nueva_nota
-                    guardar_datos(datos_actuales)
-                  st.session_state[f"editando_{reg_id}"] = False
-                  st.success("¡Modificado con éxito!")
-                  st.rerun()
-
-                if c_cancelar.form_submit_button("Cancelar"):
-                  st.session_state[f"editando_{reg_id}"] = False
-                  st.rerun()
-
-            st.markdown("---")
