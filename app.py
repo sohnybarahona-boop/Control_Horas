@@ -7,15 +7,19 @@ st.set_page_config(page_title="Control de Horas - Casas", page_icon="🏠", layo
 st.title("🏠 Sistema de Control y Registro de Horas")
 st.markdown("Gestiona las horas que debes, registra, edita o elimina actividades devengadas y consulta el resumen general.")
 
-# Inicializar estado para las dos casas completamente vacío para que no arrastre datos de prueba
+# Inicializar estado para las dos casas si no existe
 if "casa1_df" not in st.session_state:
     st.session_state.casa1_df = pd.DataFrame(columns=["ID", "Fecha", "Horas Devengadas", "Observaciones"])
 
 if "casa2_df" not in st.session_state:
     st.session_state.casa2_df = pd.DataFrame(columns=["ID", "Fecha", "Horas Devengadas", "Observaciones"])
 
-if "horas_debo" not in st.session_state:
-    st.session_state.horas_debo = {"Casa 1": 0.0, "Casa 2": 0.0}
+# Inicializar estado de horas que debo en session_state con keys independientes para evitar que se borren
+if "horas_debo_1" not in st.session_state:
+    st.session_state.horas_debo_1 = 0.0
+
+if "horas_debo_2" not in st.session_state:
+    st.session_state.horas_debo_2 = 0.0
 
 if "counter_id" not in st.session_state:
     st.session_state.counter_id = 10
@@ -23,11 +27,14 @@ if "counter_id" not in st.session_state:
 # --- SECCIÓN 1: RESUMEN GENERAL (ARRIBA) ---
 st.header("📊 Resumen General")
 
+col_s1, col_s2 = st.columns(2)
+with col_s1:
+    debo_1 = st.number_input("Ajustar Horas que Debes - Casa 1", min_value=0.0, step=1.0, key="horas_debo_1")
+with col_s2:
+    debo_2 = st.number_input("Ajustar Horas que Debes - Casa 2", min_value=0.0, step=1.0, key="horas_debo_2")
+
 total_casa1 = st.session_state.casa1_df["Horas Devengadas"].sum() if not st.session_state.casa1_df.empty else 0.0
 total_casa2 = st.session_state.casa2_df["Horas Devengadas"].sum() if not st.session_state.casa2_df.empty else 0.0
-
-debo_1 = st.session_state.horas_debo["Casa 1"]
-debo_2 = st.session_state.horas_debo["Casa 2"]
 
 restante_1 = debo_1 - total_casa1
 restante_2 = debo_2 - total_casa2
@@ -51,12 +58,6 @@ summary_data = [
 
 df_summary = pd.DataFrame(summary_data)
 st.dataframe(df_summary, use_container_width=True, hide_index=True)
-
-col_s1, col_s2 = st.columns(2)
-with col_s1:
-    st.session_state.horas_debo["Casa 1"] = st.number_input("Ajustar Horas que Debes - Casa 1", value=float(debo_1), step=1.0, min_value=0.0)
-with col_s2:
-    st.session_state.horas_debo["Casa 2"] = st.number_input("Ajustar Horas que Debes - Casa 2", value=float(debo_2), step=1.0, min_value=0.0)
 
 st.divider()
 
