@@ -10,13 +10,13 @@ st.markdown("Gestiona las horas que debes, registra, edita o elimina actividades
 # Inicializar estado para las dos casas si no existe
 if "casa1_df" not in st.session_state:
     st.session_state.casa1_df = pd.DataFrame([
-        {"ID": 1, "Fecha": "2026-09-01", "Descripción / Actividad": "Limpieza general y orden de habitaciones", "Categoría": "Mantenimiento", "Horas Devengadas": 5.0, "Observaciones": "Completado"},
-        {"ID": 2, "Fecha": "2026-09-10", "Descripción / Actividad": "Revisión de instalaciones eléctricas", "Categoría": "Reparación", "Horas Devengadas": 3.5, "Observaciones": "Sin novedad"},
+        {"ID": 1, "Fecha": "2026-09-01", "Horas Devengadas": 5.0, "Observaciones": "Limpieza general"},
+        {"ID": 2, "Fecha": "2026-09-10", "Horas Devengadas": 3.5, "Observaciones": "Revisión eléctrica"},
     ])
 
 if "casa2_df" not in st.session_state:
     st.session_state.casa2_df = pd.DataFrame([
-        {"ID": 1, "Fecha": "2026-09-05", "Descripción / Actividad": "Jardinería y áreas verdes", "Categoría": "Exteriores", "Horas Devengadas": 4.0, "Observaciones": "Completado"},
+        {"ID": 1, "Fecha": "2026-09-05", "Horas Devengadas": 4.0, "Observaciones": "Jardinería"},
     ])
 
 if "horas_debo" not in st.session_state:
@@ -72,28 +72,23 @@ tab1, tab2 = st.tabs(["Casa 1", "Casa 2"])
 def house_manager(house_name, df_key):
     st.subheader(f"Gestión de Actividades - {house_name}")
     
-    # 1. Formulario para Agregar Nuevo Registro
+    # 1. Formulario para Agregar Nuevo Registro (Sin Categoría ni Descripción)
     with st.expander("➕ Agregar Nuevo Registro de Horas", expanded=False):
         with st.form(key=f"form_add_{house_name}"):
-            col1, col2, col3 = st.columns(3)
+            col1, col2 = st.columns(2)
             with col1:
                 f_fecha = st.date_input("Fecha", key=f"add_f_{house_name}")
             with col2:
-                f_cat = st.selectbox("Categoría", ["Mantenimiento", "Reparación", "Exteriores", "Limpieza", "Otro"], key=f"add_c_{house_name}")
-            with col3:
                 f_horas = st.number_input("Horas Devengadas", min_value=0.0, step=0.5, value=1.0, key=f"add_h_{house_name}")
                 
-            f_desc = st.text_input("Descripción / Actividad", key=f"add_d_{house_name}")
-            f_obs = st.text_input("Observaciones", key=f"add_o_{house_name}")
+            f_obs = st.text_input("Observaciones / Actividad", key=f"add_o_{house_name}")
             
             submitted = st.form_submit_button("Guardar Nuevo Registro")
-            if submitted and f_desc:
+            if submitted:
                 st.session_state.counter_id += 1
                 new_row = {
                     "ID": st.session_state.counter_id,
                     "Fecha": str(f_fecha),
-                    "Descripción / Actividad": f_desc,
-                    "Categoría": f_cat,
                     "Horas Devengadas": f_horas,
                     "Observaciones": f_obs
                 }
@@ -118,7 +113,7 @@ def house_manager(house_name, df_key):
     # 2. Sección para Editar o Eliminar registros existentes
     st.markdown("### ✏️ Editar o 🗑️ Eliminar Registro Existente")
     
-    record_options = {f"ID {row['ID']} - {row['Fecha']} - {row['Descripción / Actividad']}": row['ID'] for _, row in df.iterrows()}
+    record_options = {f"ID {row['ID']} - {row['Fecha']} - {row['Observaciones']}": row['ID'] for _, row in df.iterrows()}
     
     if record_options:
         selected_label = st.selectbox("Selecciona el registro a modificar o eliminar", list(record_options.keys()), key=f"sel_{house_name}")
@@ -133,17 +128,13 @@ def house_manager(house_name, df_key):
             st.markdown("#### Editar Registro")
             with st.form(key=f"form_edit_{house_name}_{selected_id}"):
                 edit_fecha = st.text_input("Fecha (YYYY-MM-DD)", value=str(curr_row["Fecha"]))
-                edit_cat = st.selectbox("Categoría", ["Mantenimiento", "Reparación", "Exteriores", "Limpieza", "Otro"], index=["Mantenimiento", "Reparación", "Exteriores", "Limpieza", "Otro"].index(curr_row["Categoría"]) if curr_row["Categoría"] in ["Mantenimiento", "Reparación", "Exteriores", "Limpieza", "Otro"] else 0)
                 edit_horas = st.number_input("Horas Devengadas", value=float(curr_row["Horas Devengadas"]), step=0.5)
-                edit_desc = st.text_input("Descripción / Actividad", value=str(curr_row["Descripción / Actividad"]))
-                edit_obs = st.text_input("Observaciones", value=str(curr_row["Observaciones"]))
+                edit_obs = st.text_input("Observaciones / Actividad", value=str(curr_row["Observaciones"]))
                 
                 update_btn = st.form_submit_button("Actualizar Registro")
                 if update_btn:
                     st.session_state[df_key].loc[record_idx, "Fecha"] = edit_fecha
-                    st.session_state[df_key].loc[record_idx, "Categoría"] = edit_cat
                     st.session_state[df_key].loc[record_idx, "Horas Devengadas"] = edit_horas
-                    st.session_state[df_key].loc[record_idx, "Descripción / Actividad"] = edit_desc
                     st.session_state[df_key].loc[record_idx, "Observaciones"] = edit_obs
                     st.success("¡Registro actualizado con éxito!")
                     st.rerun()
