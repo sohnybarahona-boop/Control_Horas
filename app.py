@@ -25,8 +25,8 @@ def load_data():
 
 def save_data():
     data = {
-        "horas_debo_1": st.session_state.horas_debo_1,
-        "horas_debo_2": st.session_state.horas_debo_2,
+        "horas_debo_1": st.session_state.get("horas_debo_1_input", 0.0),
+        "horas_debo_2": st.session_state.get("horas_debo_2_input", 0.0),
         "casa1": st.session_state.casa1_df.to_dict(orient="records"),
         "casa2": st.session_state.casa2_df.to_dict(orient="records"),
         "counter_id": st.session_state.counter_id
@@ -34,15 +34,14 @@ def save_data():
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
-# Inicializar estado desde el almacenamiento local
-if "data_loaded" not in st.session_state:
-    saved = load_data()
-    st.session_state.horas_debo_1 = saved.get("horas_debo_1", 0.0)
-    st.session_state.horas_debo_2 = saved.get("horas_debo_2", 0.0)
+# Cargar datos iniciales
+saved = load_data()
+if "casa1_df" not in st.session_state:
     st.session_state.casa1_df = pd.DataFrame(saved.get("casa1", []))
+if "casa2_df" not in st.session_state:
     st.session_state.casa2_df = pd.DataFrame(saved.get("casa2", []))
+if "counter_id" not in st.session_state:
     st.session_state.counter_id = saved.get("counter_id", 10)
-    st.session_state.data_loaded = True
 
 st.title("🏠 Control y Registro de Horas")
 
@@ -61,36 +60,33 @@ st.header("📊 Resumen General")
 
 col_d1, col_d2 = st.columns(2)
 with col_d1:
-    st.session_state.horas_debo_1 = st.number_input("Horas que Debo - Casa 1", min_value=0.0, step=0.5, key="horas_debo_1")
-    if st.button("Actualizar Deuda Casa 1"):
-        save_data()
-        st.success("¡Deuda actualizada y guardada!")
+    val_debo_1 = st.number_input("Horas que Debo - Casa 1", min_value=0.0, step=0.5, value=float(saved.get("horas_debo_1", 0.0)), key="horas_debo_1_input")
 with col_d2:
-    st.session_state.horas_debo_2 = st.number_input("Horas que Debo - Casa 2", min_value=0.0, step=0.5, key="horas_debo_2")
-    if st.button("Actualizar Deuda Casa 2"):
-        save_data()
-        st.success("¡Deuda actualizada y guardada!")
+    val_debo_2 = st.number_input("Horas que Debo - Casa 2", min_value=0.0, step=0.5, value=float(saved.get("horas_debo_2", 0.0)), key="horas_debo_2_input")
+
+# Autoguardar de inmediato cualquier ajuste de horas debidas
+save_data()
 
 total_dev_1 = st.session_state.casa1_df["Horas Devengadas"].sum() if not st.session_state.casa1_df.empty else 0.0
 total_dev_2 = st.session_state.casa2_df["Horas Devengadas"].sum() if not st.session_state.casa2_df.empty else 0.0
 
-restante_1 = st.session_state.horas_debo_1 - total_dev_1
-restante_2 = st.session_state.horas_debo_2 - total_dev_2
+restante_1 = val_debo_1 - total_dev_1
+restante_2 = val_debo_2 - total_dev_2
 
 summary_table = [
     {
         "Casa": "Casa 1",
-        "Horas Totales que Debo": format_hours_minutes(st.session_state.horas_debo_1),
+        "Horas Totales que Debo": format_hours_minutes(val_debo_1),
         "Horas Devengadas": format_hours_minutes(total_dev_1),
         "Horas Restantes": format_hours_minutes(restante_1 if restante_1 > 0 else 0.0),
-        "Estado": "Completado" if restante_1 <= 0 and st.session_state.horas_debo_1 > 0 else "Pendiente"
+        "Estado": "Completado" if restante_1 <= 0 and val_debo_1 > 0 else "Pendiente"
     },
     {
         "Casa": "Casa 2",
-        "Horas Totales que Debo": format_hours_minutes(st.session_state.horas_debo_2),
+        "Horas Totales que Debo": format_hours_minutes(val_debo_2),
         "Horas Devengadas": format_hours_minutes(total_dev_2),
         "Horas Restantes": format_hours_minutes(restante_2 if restante_2 > 0 else 0.0),
-        "Estado": "Completado" if restante_2 <= 0 and st.session_state.horas_debo_2 > 0 else "Pendiente"
+        "Estado": "Completado" if restante_2 <= 0 and val_debo_2 > 0 else "Pendiente"
     }
 ]
 
